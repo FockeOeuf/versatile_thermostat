@@ -240,20 +240,10 @@ class ThermostatOverClimate(BaseThermostat[UnderlyingClimate]):
             )
         else:
             new_regulated_temp = self.target_temperature
-        dtemp = new_regulated_temp - self._regulated_target_temp
-
-        if not force and abs(dtemp) < self._auto_regulation_dtemp:
-            _LOGGER.info(
-                "%s - dtemp (%.1f) is < %.1f -> forget the regulation send",
-                self,
-                dtemp,
-                self._auto_regulation_dtemp,
-            )
-            return
-
+        
         self._regulated_target_temp = new_regulated_temp
         _LOGGER.info(
-            "%s - Regulated temp have changed to %.1f. Resend it to underlyings",
+            "%s - Regulated temp have changed to %.1f. Resend it to underlyings if target temp difference is above regulation step",
             self,
             new_regulated_temp,
         )
@@ -274,20 +264,30 @@ class ThermostatOverClimate(BaseThermostat[UnderlyingClimate]):
                 offset_temp = device_temp - self.current_temperature
 
             target_temp = round_to_nearest(self.regulated_target_temp + offset_temp, regulation_step)
+            dtemp = self.current_temperature - target_temp
 
-            _LOGGER.debug(
-                "%s - The device offset temp for regulation is %.2f - internal temp is %.2f. New target is %.2f",
-                self,
-                offset_temp,
-                device_temp,
-                target_temp,
-            )
-
-            await under.set_temperature(
-                target_temp,
-                self._attr_max_temp,
-                self._attr_min_temp,
-            )
+                if not force and abs(dtemp) < self._auto_regulation_dtemp:
+                    _LOGGER.info(
+                        "%s - dtemp (%.1f) is < %.1f -> forget the regulation send",
+                        self,
+                        dtemp,
+                        self._auto_regulation_dtemp,
+                    )
+                    
+                else:
+                    _LOGGER.debug(
+                        "%s - The device offset temp for regulation is %.2f - internal temp is %.2f. New target is %.2f",
+                        self,
+                        offset_temp,
+                        device_temp,
+                        target_temp,
+                    )
+            
+                    await under.set_temperature(
+                        target_temp,
+                        self._attr_max_temp,
+                        self._attr_min_temp,
+                    )
 
     async def _send_auto_fan_mode(self):
         """Send the fan mode if auto_fan_mode and temperature gap is > threshold"""
